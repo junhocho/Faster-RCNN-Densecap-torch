@@ -216,7 +216,7 @@ def main(args):
 
   # get all annotations
   data = getAllAnnotations(annopath, imgpath, split_data['train'] + split_data['val'])
-
+  print data
   all_data = [img['id'] for img in data] + split_data['test']
 
   # create the output hdf5 file handle
