@@ -10,7 +10,9 @@ function M.parse(arg)
 
   -- Core ConvNet settings
   cmd:option('-backend', 'cudnn', 'nn|cudnn')
-  
+ 
+  -- jh: garbage collecting iteration for evaluation
+  cmd:option('-gciter', 10, 'Prevent luajit not enough memory.')
 
   -- Model settings
   cmd:option('-rpn_hidden_dim', 512,

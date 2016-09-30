@@ -199,6 +199,7 @@ while true do
       split='val',
       max_images=opt.val_images_use,
       dtype=dtype,
+	  gciter=opt.gciter, -- jh
     }
     local results = eval_utils.eval_split(eval_kwargs)
     -- local results = eval_split(1, opt.val_images_use) -- 1 = validation

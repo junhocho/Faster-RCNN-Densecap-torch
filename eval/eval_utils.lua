@@ -5,6 +5,7 @@ local box_utils = require 'densecap.box_utils'
 
 local eval_utils = {}
 
+-- TODO DenseCaptioningEvaluator needed? check --> evaluate after while-loop!!
 
 --[[
 Evaluate a DenseCapModel on a split of data from a DataLoader.
@@ -26,6 +27,9 @@ function eval_utils.eval_split(kwargs)
   local max_images = utils.getopt(kwargs, 'max_images', -1)
   local id = utils.getopt(kwargs, 'id', '')
   local dtype = utils.getopt(kwargs, 'dtype', 'torch.FloatTensor')
+
+  local gciter = utils.getopt(kwargs, 'gciter', '5')
+
   assert(split == 'val' or split == 'test', 'split must be "val" or "test"')
   local split_to_int = {val=1, test=2}
   split = split_to_int[split]
@@ -40,6 +44,8 @@ function eval_utils.eval_split(kwargs)
 
   local counter = 0
   local all_losses = {}
+
+  -- start detecting in while
   while true do
     counter = counter + 1
     
@@ -86,7 +92,19 @@ function eval_utils.eval_split(kwargs)
     -- Break out if we have processed enough images
     if max_images > 0 and counter >= max_images then break end
     if info.split_bounds[1] == info.split_bounds[2] then break end
+	if counter % gciter == 0 then
+		print ("do gc!  " .. collectgarbage("count"))
+		collectgarbage() 
+		collectgarbage()
+	end --jh
+	if counter > 4000 then
+		print ("do gc!  " .. collectgarbage("count"))
+		collectgarbage()
+		collectgarbage()
+	end
+	print("check garbage: " .. collectgarbage("count"))
   end
+  -- evluation done.
 
   local loss_results = utils.dict_average(all_losses)
   print('Loss stats:')
@@ -113,6 +131,7 @@ function eval_utils.eval_split(kwargs)
     ap_results=ap_results,
     pr_curves = pr_curves,
   }
+  collectgarbage() --jh
   return out
 end
 
