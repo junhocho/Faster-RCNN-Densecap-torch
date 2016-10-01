@@ -5,6 +5,8 @@ Main entry point for training a DenseCap model
 -------------------------------------------------------------------------------
 -- Includes
 -------------------------------------------------------------------------------
+local debugger = require('fb.debugger')
+
 require 'torch'
 require 'nngraph'
 require 'optim'
@@ -51,6 +53,8 @@ local model = models.setup(opt):type(dtype)
 local params, grad_params, cnn_params, cnn_grad_params = model:getParameters()
 print('total number of parameters in net: ', grad_params:nElement())
 print('total number of parameters in CNN: ', cnn_grad_params:nElement())
+
+debugger.enter()
 
 -- Initialize training information
 local loss_history = {}
@@ -146,6 +150,8 @@ while true do
   -- Compute loss and gradient
   local losses, stats = lossFun()
 
+  -- debugger.enter()
+
   -- Parameter update
   -- perform a parameter update
   if opt.optim == 'rmsprop' then
@@ -164,6 +170,8 @@ while true do
     error('bad option opt.optim')
   end
 
+  -- debugger.enter()
+
   -- Make a step on the CNN if finetuning
   if opt.finetune_cnn_after >= 0 and iter >= opt.finetune_cnn_after then
     if opt.cnn_optim == 'sgd' then
@@ -177,15 +185,22 @@ while true do
     else
       error('bad option for opt.cnn_optim')
     end
+
   end
+
+  debugger.enter()
 
   -- print loss and timing/benchmarks
   print(string.format('iter %d: %s', iter, utils.build_loss_string(losses)))
   if opt.timing then print(utils.build_timing_string(stats.times)) end
 
-  -- Evalutation. another eval while-loop.
-  if ((opt.eval_first_iteration == 1 or iter > 0) and iter % opt.save_checkpoint_every == 0) or (iter+1 == opt.max_iters) then
 
+	
+  -- Eval and model save condition
+  -- iter = opt.max_iters - 1 -- jh: go through evaluation 
+
+  if ((opt.eval_first_iteration == 1 or iter > 0) and iter % opt.save_checkpoint_every == 0) or (iter+1 == opt.max_iters) then
+	
     -- Set test-time options for the model
     model.nets.localization_layer:setTestArgs{
       nms_thresh=opt.test_rpn_nms_thresh,
@@ -202,7 +217,7 @@ while true do
       dtype=dtype,
 	  gciter=opt.gciter, -- jh
     }
-    local results = eval_utils.eval_split(eval_kwargs)
+    local results = eval_utils.eval_split(eval_kwargs, debugger)
     -- local results = eval_split(1, opt.val_images_use) -- 1 = validation
     results_history[iter] = results
 
