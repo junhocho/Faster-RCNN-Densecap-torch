@@ -20,7 +20,7 @@ Input: An object with the following keys:
 - dtype: torch datatype to which data should be cast before passing to the
   model. Default is 'torch.FloatTensor'.
 --]]
-function eval_utils.eval_split(kwargs)
+function eval_utils.eval_split(kwargs, debugger)
   local model = utils.getopt(kwargs, 'model')
   local loader = utils.getopt(kwargs, 'loader')
   local split = utils.getopt(kwargs, 'split', 'val')
@@ -29,6 +29,7 @@ function eval_utils.eval_split(kwargs)
   local dtype = utils.getopt(kwargs, 'dtype', 'torch.FloatTensor')
 
   local gciter = utils.getopt(kwargs, 'gciter', '5')
+  local debugger = debugger
 
   assert(split == 'val' or split == 'test', 'split must be "val" or "test"')
   local split_to_int = {val=1, test=2}
@@ -46,14 +47,27 @@ function eval_utils.eval_split(kwargs)
   local all_losses = {}
 
   -- start detecting in while
+  local data
+  local loader_kwargs
+   local loader_kwargs 
+    local img, gt_boxes, gt_labels, info
+	local data
+	local losses
+	local boxes, scores
+	local sel_inds
+	local cls_gt_boxes
+	local msg
+	local num_images, num_boxes
+
   while true do
+	-- debugger.enter()
     counter = counter + 1
     
     -- Grab a batch of data and convert it to the right dtype
-    local data = {}
-    local loader_kwargs = {split=split, iterate=true}
-    local img, gt_boxes, gt_labels, info, _ = loader:getBatch(loader_kwargs)
-    local data = {
+    data = {}
+    loader_kwargs = {split=split, iterate=true}
+    img, gt_boxes, gt_labels, info, _ = loader:getBatch(loader_kwargs)
+    data = {
       image = img:type(dtype),
       gt_boxes = gt_boxes:type(dtype),
       gt_labels = gt_labels:type(dtype),
@@ -64,29 +78,27 @@ function eval_utils.eval_split(kwargs)
     model.timing = false
     model.dump_vars = false
     model.cnn_backward = false
-    local losses = model:forward_backward(data)
-    table.insert(all_losses, losses)
+	--losses = model:forward_backward(data)
+    --table.insert(all_losses, losses)
 
     -- Call forward_test to make predictions, and pass them to evaluator
-    local boxes, scores = model:forward_test(data.image)
+    boxes, scores = model:forward_test(data.image)
     -- 1 is the RPN output
-    evaluator[1]:addResult(scores[1], boxes[1], 
-          gt_boxes[1], 'RPN')
+    evaluator[1]:addResult(scores[1], boxes[1], gt_boxes[1], 'RPN')
     for cls = 2, model.opt.num_classes do
-      local sel_inds = torch.range(1,gt_labels[1]:size(1))[gt_labels[1]:eq(cls)]:long()
-      local cls_gt_boxes
+      sel_inds = torch.range(1,gt_labels[1]:size(1))[gt_labels[1]:eq(cls)]:long()
       if sel_inds:numel() ~= 0 then
         cls_gt_boxes = gt_boxes[1]:index(1, sel_inds)
       end
       evaluator[cls]:addResult(scores[cls], boxes[cls], -- table index start from 1
-          cls_gt_boxes, model.opt.idx_to_cls[cls])
+	  cls_gt_boxes, model.opt.idx_to_cls[cls])
     end
     
     -- Print a message to the console
-    local msg = 'Processed image %s (%d / %d) of split %d, detected %d regions'
-    local num_images = info.split_bounds[2]
+    msg = 'Processed image %s (%d / %d) of split %d, detected %d regions'
+    num_images = info.split_bounds[2]
     if max_images > 0 then num_images = math.min(num_images, max_images) end
-    local num_boxes = boxes[1]:size(1)
+    num_boxes = boxes[1]:size(1)
     print(string.format(msg, info.filename, counter, num_images, split, num_boxes))
 
     -- Break out if we have processed enough images
@@ -97,11 +109,11 @@ function eval_utils.eval_split(kwargs)
 		collectgarbage() 
 		collectgarbage()
 	end --jh
-	if counter > 4000 then
-		print ("do gc!  " .. collectgarbage("count"))
-		collectgarbage()
-		collectgarbage()
-	end
+	-- if counter > 4000 then
+	-- 	print ("do gc!  " .. collectgarbage("count"))
+	-- 	collectgarbage()
+	-- 	collectgarbage()
+	-- end
 	print("check garbage: " .. collectgarbage("count"))
   end
   -- evluation done.
