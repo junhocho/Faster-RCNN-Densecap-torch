@@ -49,16 +49,20 @@ function eval_utils.eval_split(kwargs, debugger)
   -- start detecting in while
   local data
   local loader_kwargs
-   local loader_kwargs 
-    local img, gt_boxes, gt_labels, info
-	local data
-	local losses
-	local boxes, scores
-	local sel_inds
-	local cls_gt_boxes
-	local msg
-	local num_images, num_boxes
+  local loader_kwargs 
+  local img, gt_boxes, gt_labels, info
+  local data
+  local losses
+  local boxes, scores
+  local sel_inds
+  local cls_gt_boxes
+  local msg
+  local num_images, num_boxes
 
+  local eval_debug = false 
+  if eval_debug then  
+	counter = 5823 - 20  -- jh : just 10 eval for eval-debugger
+  end
   while true do
 	-- debugger.enter()
     counter = counter + 1
@@ -84,15 +88,21 @@ function eval_utils.eval_split(kwargs, debugger)
     -- Call forward_test to make predictions, and pass them to evaluator
     boxes, scores = model:forward_test(data.image)
     -- 1 is the RPN output
+	
+	-- debugger.enter()
     evaluator[1]:addResult(scores[1], boxes[1], gt_boxes[1], 'RPN')
-    for cls = 2, model.opt.num_classes do
-      sel_inds = torch.range(1,gt_labels[1]:size(1))[gt_labels[1]:eq(cls)]:long()
-      if sel_inds:numel() ~= 0 then
-        cls_gt_boxes = gt_boxes[1]:index(1, sel_inds)
-      end
-      evaluator[cls]:addResult(scores[cls], boxes[cls], -- table index start from 1
-	  cls_gt_boxes, model.opt.idx_to_cls[cls])
-    end
+    -- for cls = 2, model.opt.num_classes do
+
+	--   debugger.enter()
+	--   -- index of current cls in gt_labels. if gt_labels = [20, 16] and cls = 16 --> sel_inds = 2
+    --   sel_inds = torch.range(1,gt_labels[1]:size(1))[gt_labels[1]:eq(cls)]:long()
+	--   -- if current cls not in gt_labels, then sel_inds:numel() = 0 which is following if-scope
+    --   if sel_inds:numel() ~= 0 then
+    --     cls_gt_boxes = gt_boxes[1]:index(1, sel_inds)
+    --   end
+	--   evaluator[cls]:addResult(scores[cls], boxes[cls], -- table index start from 1
+	--   cls_gt_boxes, model.opt.idx_to_cls[cls])
+    -- end
     
     -- Print a message to the console
     msg = 'Processed image %s (%d / %d) of split %d, detected %d regions'
@@ -102,6 +112,7 @@ function eval_utils.eval_split(kwargs, debugger)
     print(string.format(msg, info.filename, counter, num_images, split, num_boxes))
 
     -- Break out if we have processed enough images
+	if counter > 5823 and eval_debug then break end -- jh : force to loop-out for eval-debug
     if max_images > 0 and counter >= max_images then break end
     if info.split_bounds[1] == info.split_bounds[2] then break end
 	if counter % gciter == 0 then
@@ -125,18 +136,22 @@ function eval_utils.eval_split(kwargs, debugger)
   
   local ap_results = {}
   local pr_curves = {}
-  for cls = 1, model.opt.num_classes do
-    ap_results[cls], pr_curves[cls] = unpack(evaluator[cls]:evaluate())
-  end
+
+
+  --jh : RPN only
+  ap_results[1], pr_curves[1] = unpack(evaluator[1]:evaluate())
+  -- for cls = 1, model.opt.num_classes do
+  --   ap_results[cls], pr_curves[cls] = unpack(evaluator[cls]:evaluate())
+  -- end
   ap_results.rpn_ap = ap_results[1]['ov0.5'] -- RPN ap
   ap_results.map = {}
-  for cls = 2, model.opt.num_classes do
-    table.insert(ap_results.map, ap_results[cls]['ov0.5'])
-  end
-  ap_results.map = utils.average_values(ap_results.map)
+  -- for cls = 2, model.opt.num_classes do
+  --   table.insert(ap_results.map, ap_results[cls]['ov0.5'])
+  -- end
+  -- ap_results.map = utils.average_values(ap_results.map)
 
   print(string.format('rpn AP: %f', 100 * ap_results.rpn_ap))
-  print(string.format('mAP: %f', 100 * ap_results.map))
+  -- print(string.format('mAP: %f', 100 * ap_results.map))
   
   local out = {
     loss_results=loss_results,
