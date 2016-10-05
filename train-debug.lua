@@ -5,8 +5,12 @@ Main entry point for training a DenseCap model
 -------------------------------------------------------------------------------
 -- Includes
 -------------------------------------------------------------------------------
-local debugger = require('fb.debugger')
-
+-- debug setup
+local train_debug = false -- jh : require fb.debugger 
+if train_debug then 
+	local debugger = require('fb.debugger')
+end
+local always_save_checkpoint = true -- if false, only eval and save when mAP arise.
 require 'torch'
 require 'nngraph'
 require 'optim'
@@ -145,7 +149,6 @@ end
 -- Main loop
 -------------------------------------------------------------------------------
 local loss0
-local train_debug = false -- jh : train debug only 20 training 
 
 while true do  
 
@@ -199,9 +202,6 @@ while true do
 
 	
   -- Eval and model save condition
-  if iter > 20 and train_debug then 
-  	iter = opt.max_iters - 1  -- jh: go through eval-debug 
-  end
   if ((opt.eval_first_iteration == 1 or iter > 0) and iter % opt.save_checkpoint_every == 0) or (iter+1 == opt.max_iters) then
 	
     -- Set test-time options for the model
@@ -242,8 +242,7 @@ while true do
     print('wrote ' .. opt.checkpoint_path .. '.json')
 
     -- Only save t7 checkpoint if there is an improvement in mAP
-    if true then 
-	-- if best_val_score == nil or results.ap_results.map > best_val_score then
+	  if always_save_checkpoint or best_val_score == nil or results.ap_results.map > best_val_score then
       best_val_score = results.ap_results.map
       checkpoint.best_val_score = best_val_score
       -- save the optim state, for better resuming
